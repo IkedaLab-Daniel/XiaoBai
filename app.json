@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "XiaoBai",
+    "slug": "xiaobai",
+    "scheme": "xiaobai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"]
+  }
+}

@@ -68,6 +68,26 @@ export const mapStorage = {
     return tile ? tile.data : null;
   },
 
+  async getAllTiles(): Promise<Array<{ z: number; x: number; y: number; region: string }>> {
+    const tiles: Array<{ z: number; x: number; y: number; region: string }> = [];
+    const keys = await mapTilesStore.keys();
+    
+    for (const key of keys) {
+      const parts = key.split('/');
+      if (parts.length === 3) {
+        const tile = await mapTilesStore.getItem<MapTile>(key);
+        tiles.push({
+          z: parseInt(parts[0]),
+          x: parseInt(parts[1]),
+          y: parseInt(parts[2]),
+          region: tile?.region || 'unknown'
+        });
+      }
+    }
+    
+    return tiles;
+  },
+
   async deleteTilesByRegion(regionId: string): Promise<void> {
     const keys = await mapTilesStore.keys();
     const deletePromises = keys.map(async (key) => {

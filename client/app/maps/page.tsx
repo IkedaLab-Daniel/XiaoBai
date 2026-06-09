@@ -27,12 +27,35 @@ export default function MapsPage() {
   const [storageInfo, setStorageInfo] = useState({ usage: 0, quota: 0, percentUsed: 0 })
   const [loading, setLoading] = useState(true)
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Math.round(bytes / Math.pow(k, i)) + ' ' + sizes[i]
+  }
+
   const loadData = async () => {
     try {
       const regions = await mapStorage.getAllRegions()
       const storage = await mapStorage.getStorageInfo()
-      setInstalledRegions(regions)
+      const allTiles = await mapStorage.getAllTiles()
+      
+      // Count cached tiles
+      const cachedTiles = allTiles.filter(t => t.region === 'online-cache')
+      
+      // Update regions to show cached tile count
+      const updatedRegions = regions.map(r => {
+        if (r.id === 'online-cache') {
+          return { ...r, tileCount: cachedTiles.length }
+        }
+        return r
+      })
+      
+      setInstalledRegions(updatedRegions)
       setStorageInfo(storage)
+      
+      console.log(`📊 Storage: ${cachedTiles.length} cached tiles, ${formatBytes(storage.usage)} used`)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -45,13 +68,6 @@ export default function MapsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i)) + ' ' + sizes[i]
-  }
 
   return (
     <div className="min-h-screen pb-20 bg-background">
@@ -143,37 +159,23 @@ export default function MapsPage() {
 
 // Regions View Component
 function RegionsView({ installedRegions, onUpdate }: { installedRegions: Region[], onUpdate: () => void }) {
-  const [showImportDialog, setShowImportDialog] = useState(false)
-
-  const handleImportSuccess = (region: Region) => {
-    setShowImportDialog(false)
-    onUpdate()
-  }
-
   const installedIds = new Set(installedRegions.map(r => r.id))
 
   return (
     <div className="space-y-4">
-      {/* Import Button */}
-      <button
-        onClick={() => setShowImportDialog(true)}
-        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-medium transition-colors"
-      >
-        <Upload size={20} />
-        Import Map Data from Files
-      </button>
-
-      {/* Import Dialog */}
-      <ImportDialog
-        isOpen={showImportDialog}
-        onClose={() => setShowImportDialog(false)}
-        onSuccess={handleImportSuccess}
-      />
+      {/* Info Card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <h3 className="font-bold text-blue-900 mb-2">📍 Smart Caching Enabled</h3>
+        <p className="text-sm text-blue-700">
+          Maps automatically cache as you browse. No manual import needed!
+          Just explore the map online, and tiles will be available offline.
+        </p>
+      </div>
 
       {/* Installed Regions */}
       {installedRegions.length > 0 && (
         <div>
-          <h3 className="text-lg font-bold text-foreground mb-3">Installed Regions</h3>
+          <h3 className="text-lg font-bold text-foreground mb-3">Cached Regions</h3>
           <div className="space-y-3">
             {installedRegions.map((region) => (
               <RegionCard key={region.id} region={region} installed={true} onUpdate={onUpdate} />
@@ -184,7 +186,10 @@ function RegionsView({ installedRegions, onUpdate }: { installedRegions: Region[
 
       {/* Available Regions */}
       <div>
-        <h3 className="text-lg font-bold text-foreground mb-3">Available Regions</h3>
+        <h3 className="text-lg font-bold text-foreground mb-3">Suggested Regions</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Visit these areas on the map to cache them for offline use
+        </p>
         <div className="space-y-3">
           {PREDEFINED_REGIONS.filter(r => !installedIds.has(r.id)).map((region) => (
             <RegionCard
@@ -232,7 +237,7 @@ function RegionCard({ region, installed, onUpdate }: { region: Region, installed
             <MapPin size={18} className={installed ? 'text-green-600' : 'text-gray-400'} />
             <h4 className="font-bold text-foreground">{region.name}</h4>
           </div>
-          <p className="text-sm text-foreground opacity-70">{region.country}</p>
+          <p className="text-sm text-foreground opacity-70">{region.country || 'Unknown Region'}</p>
           <div className="mt-2 flex items-center gap-4 text-xs text-foreground opacity-60">
             <span>{formatBytes(region.size)}</span>
             <span>•</span>
@@ -261,10 +266,53 @@ function RegionCard({ region, installed, onUpdate }: { region: Region, installed
 // Map View Component
 function MapViewContainer() {
   const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null)
+  const [mapZoom, setMapZoom] = useState(13)
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true)
+
+  useEffect(() => {
+    // Try to get user's current location first
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          setMapCenter([latitude, longitude])
+          setMapZoom(15)
+          setIsLoadingLocation(false)
+          console.log('Map centered on user location:', [latitude, longitude])
+        },
+        (error) => {
+          console.log('Geolocation not available, using default location')
+          // Fallback to default location (Beijing)
+          setMapCenter([39.9042, 116.4074])
+          setIsLoadingLocation(false)
+        },
+        {
+          timeout: 5000,
+          maximumAge: 0
+        }
+      )
+    } else {
+      // Geolocation not supported, use default
+      setMapCenter([39.9042, 116.4074])
+      setIsLoadingLocation(false)
+    }
+  }, [])
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng })
     // Could show a dialog to save this location
+  }
+
+  if (isLoadingLocation || !mapCenter) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] bg-white rounded-2xl">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-green-600 border-t-transparent mb-2"></div>
+          <p className="text-foreground opacity-70">Getting your location...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -281,7 +329,11 @@ function MapViewContainer() {
       </div>
       
       <div className="h-[60vh] bg-white rounded-2xl overflow-hidden shadow-sm">
-        <MapView onLocationSelect={handleLocationSelect} />
+        <MapView
+          center={mapCenter}
+          zoom={mapZoom}
+          onLocationSelect={handleLocationSelect}
+        />
       </div>
     </div>
   )

@@ -5,10 +5,10 @@ import { Settings } from "lucide-react"
 export default function Hero() {
   return (
     <div
-      className="bg-[url('/home-top-bg.png')] w-full bg-cover bg-center rounded-bl-3xl rounded-br-3xl pb-8"
+      className="bg-[url('/home-top-bg.png')] w-full bg-cover bg-center rounded-bl-3xl rounded-br-3xl pb-[300px] absolute z-0"
     >
       {/* Header */}
-      <div className="px-4 pt-4 pb-6 flex justify-between items-start">
+      <div className="mt-3 px-4 pt-4 pb-6 flex justify-between items-start">
         {/* Offline Mode Badge */}
         <div className="bg-white rounded-full px-4 py-2 shadow-md flex items-center gap-2">
           <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
@@ -39,7 +39,7 @@ export default function Hero() {
       </div>
 
       {/* Dog Mascot with Speech Bubble */}
-      <div className="relative px-4 mt-8">
+      {/* <div className="relative px-4 mt-8">
         <div className="absolute right-8 top-0 bg-white rounded-3xl rounded-br-sm px-6 py-4 shadow-lg max-w-[200px]">
           <p className="text-sm font-medium text-foreground">
             Woof! 🐾<br/>
@@ -48,7 +48,7 @@ export default function Hero() {
           </p>
           <div className="absolute -bottom-1 right-0 w-4 h-4 bg-white transform rotate-45 translate-x-1"></div>
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }

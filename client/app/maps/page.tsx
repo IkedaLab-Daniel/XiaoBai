@@ -1,9 +1,25 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, MapPin, Search, Bookmark, Settings, Upload, Download } from 'lucide-react'
+import { ArrowLeft, MapPin, Bookmark, Settings, Upload } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { mapStorage, Region, PREDEFINED_REGIONS } from '../lib/mapStorage'
+import ImportDialog from '../components/ImportDialog'
+import SavedPlacesView from '../components/SavedPlacesView'
+
+// Dynamically import MapView to avoid SSR issues with Leaflet
+const MapView = dynamic(() => import('../components/MapView'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-2xl">
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-green-600 border-t-transparent mb-2"></div>
+        <p className="text-foreground opacity-70">Loading map...</p>
+      </div>
+    </div>
+  )
+})
 
 export default function MapsPage() {
   const [view, setView] = useState<'map' | 'regions' | 'saved'>('regions')
@@ -116,7 +132,7 @@ export default function MapsPage() {
         ) : (
           <>
             {view === 'regions' && <RegionsView installedRegions={installedRegions} onUpdate={loadData} />}
-            {view === 'map' && <MapView />}
+            {view === 'map' && <MapViewContainer />}
             {view === 'saved' && <SavedPlacesView />}
           </>
         )}
@@ -127,33 +143,11 @@ export default function MapsPage() {
 
 // Regions View Component
 function RegionsView({ installedRegions, onUpdate }: { installedRegions: Region[], onUpdate: () => void }) {
-  const [importing, setImporting] = useState(false)
+  const [showImportDialog, setShowImportDialog] = useState(false)
 
-  const handleImport = async () => {
-    setImporting(true)
-    try {
-      // Create file input element
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = '.mbtiles,.json'
-      input.multiple = true
-      
-      input.onchange = async (e) => {
-        const files = (e.target as HTMLInputElement).files
-        if (files) {
-          // Process files here
-          alert(`Selected ${files.length} file(s). Import functionality will be implemented.`)
-          onUpdate()
-        }
-      }
-      
-      input.click()
-    } catch (error) {
-      console.error('Import failed:', error)
-      alert('Failed to import map data')
-    } finally {
-      setImporting(false)
-    }
+  const handleImportSuccess = (region: Region) => {
+    setShowImportDialog(false)
+    onUpdate()
   }
 
   const installedIds = new Set(installedRegions.map(r => r.id))
@@ -162,13 +156,19 @@ function RegionsView({ installedRegions, onUpdate }: { installedRegions: Region[
     <div className="space-y-4">
       {/* Import Button */}
       <button
-        onClick={handleImport}
-        disabled={importing}
-        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-medium transition-colors disabled:opacity-50"
+        onClick={() => setShowImportDialog(true)}
+        className="w-full bg-green-600 hover:bg-green-700 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-medium transition-colors"
       >
         <Upload size={20} />
-        {importing ? 'Importing...' : 'Import Map Data from Files'}
+        Import Map Data from Files
       </button>
+
+      {/* Import Dialog */}
+      <ImportDialog
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onSuccess={handleImportSuccess}
+      />
 
       {/* Installed Regions */}
       {installedRegions.length > 0 && (
@@ -258,36 +258,34 @@ function RegionCard({ region, installed, onUpdate }: { region: Region, installed
   )
 }
 
-// Map View Component (Placeholder)
-function MapView() {
+// Map View Component
+function MapViewContainer() {
+  const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number} | null>(null)
+
+  const handleLocationSelect = (lat: number, lng: number) => {
+    setSelectedLocation({ lat, lng })
+    // Could show a dialog to save this location
+  }
+
   return (
-    <div className="bg-white rounded-2xl p-8 text-center">
-      <MapPin size={48} className="mx-auto text-green-600 mb-4" />
-      <h3 className="text-xl font-bold text-foreground mb-2">Map View</h3>
-      <p className="text-foreground opacity-70 mb-4">
-        Interactive map will be displayed here once regions are installed.
-      </p>
-      <p className="text-sm text-foreground opacity-50">
-        Install a region to start exploring offline maps.
-      </p>
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="text-sm text-foreground opacity-70 mb-2">
+          Tap on the map to select a location and save it to your places.
+        </p>
+        {selectedLocation && (
+          <p className="text-xs text-green-600">
+            Selected: {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+          </p>
+        )}
+      </div>
+      
+      <div className="h-[60vh] bg-white rounded-2xl overflow-hidden shadow-sm">
+        <MapView onLocationSelect={handleLocationSelect} />
+      </div>
     </div>
   )
 }
 
-// Saved Places View Component (Placeholder)
-function SavedPlacesView() {
-  return (
-    <div className="bg-white rounded-2xl p-8 text-center">
-      <Bookmark size={48} className="mx-auto text-green-600 mb-4" />
-      <h3 className="text-xl font-bold text-foreground mb-2">Saved Places</h3>
-      <p className="text-foreground opacity-70 mb-4">
-        Your bookmarked locations will appear here.
-      </p>
-      <p className="text-sm text-foreground opacity-50">
-        Save places while exploring the map to access them quickly.
-      </p>
-    </div>
-  )
-}
 
 // Made with Bob

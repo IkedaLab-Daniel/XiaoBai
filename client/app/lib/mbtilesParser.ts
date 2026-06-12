@@ -194,8 +194,7 @@ export class MBTilesParser {
         const y = (Math.pow(2, z) - 1) - (row as number) // TMS to XYZ conversion
         
         // Convert tile data to Blob with correct MIME type
-        // @ts-expect-error - Type compatibility issue with Uint8Array
-        const tileBlob = new Blob([data], {
+        const tileBlob = new Blob([data as BlobPart], {
           type: mimeType
         })
         
